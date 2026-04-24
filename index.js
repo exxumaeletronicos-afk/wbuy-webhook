@@ -1,47 +1,37 @@
-const pedido_id = data?.dados?.id || "EMPTY";
+const dados = data?.dados || data;
 
-const cliente = data?.dados?.cliente?.nome 
-  || data?.dados?.cliente 
-  || "Cliente não informado";
+// 🧠 ID
+const pedido_id = dados?.id || "SEM_ID";
 
-const status = data?.dados?.status_nome 
-  || data?.dados?.status 
-  || "Status não informado";
+// 👤 CLIENTE (suporta objeto OU texto)
+const cliente = 
+  dados?.cliente?.nome ||
+  dados?.cliente ||
+  "Cliente não informado";
 
+// 📦 STATUS
+const status =
+  dados?.status_nome ||
+  dados?.status ||
+  dados?.situacao ||
+  "Status não informado";
+
+// 💰 VALOR
 const valor_total = parseFloat(
-  data?.dados?.valor_total 
-  || data?.dados?.valor 
-  || 0
+  dados?.valor_total ||
+  dados?.total ||
+  dados?.valor ||
+  0
 );
 
-    const payload = data;
+// 📅 DATA
+const data_pedido =
+  dados?.data ||
+  dados?.created_at ||
+  new Date().toISOString();
 
-    const { error } = await supabase
-      .from('wbuy_pedidos')
-      .insert([{
-        pedido_id,
-        cliente,
-        status,
-        valor_total,
-        payload
-      }]);
-
-    if (error) {
-      console.error("❌ Erro ao salvar:", error);
-    } else {
-      console.log("✅ Pedido salvo no Supabase!");
-    }
-
-    res.status(200).json({ ok: true });
-
-  } catch (err) {
-    console.error("💥 ERRO:", err);
-    res.status(500).json({ error: "erro interno" });
-  }
-});
-
-// 🚀 Porta
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-});
+// 📞 TELEFONE
+const telefone =
+  dados?.cliente?.telefone ||
+  dados?.telefone ||
+  null;
