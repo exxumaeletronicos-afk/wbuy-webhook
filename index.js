@@ -1,74 +1,59 @@
-app.post("/webhook/wbuy", async (req, res) => {
+const express = require('express');
+const cors = require('cors');
+const { createClient } = require('@supabase/supabase-js');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// 🔗 Supabase
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
+
+// 🚀 Webhook Wbuy
+app.post('/webhook/wbuy', async (req, res) => {
   try {
+    console.log("📦 Webhook recebido:");
+    console.log(JSON.stringify(req.body, null, 2));
+
     const data = req.body;
 
-    console.log("Webhook recebido:", JSON.stringify(data, null, 2));
+    // 🔍 Mapeamento correto baseado no seu log
+    const pedido_id = data?.dados?.pedido_id || "EMPTY";
+    const cliente = data?.dados?.cliente?.nome || "Cliente não informado";
+    const status = data?.dados?.status_nome || "Status não informado";
+    const valor_total = parseFloat(data?.dados?.valor_total || 0);
 
-    // 🔥 GARANTE QUE dados SEMPRE EXISTE
-    const dados = data?.dados || data || {};
+    const payload = data;
 
-    const pedido_id =
-      dados.pedido_id?.toString() ||
-      dados.id?.toString() ||
-      "";
-
-    const cliente =
-      dados.cliente?.nome ||
-      dados.nome ||
-      dados.cliente_nome ||
-      "Cliente não informado";
-
-    const status =
-      dados.status_nome ||
-      dados.status ||
-      dados.situacao ||
-      "Status não informado";
-
-    const valor_total = Number(
-      dados.pagamento?.valor_total ||
-      dados.valor_total ||
-      dados.total ||
-      dados.valor ||
-      0
-    );
-
-    const resposta = await fetch(`${SUPABASE_URL}/rest/v1/wbuy_pedidos`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        apikey: SUPABASE_KEY,
-        Authorization: `Bearer ${SUPABASE_KEY}`,
-        Prefer: "return=representation",
-      },
-      body: JSON.stringify({
+    const { error } = await supabase
+      .from('wbuy_pedidos')
+      .insert([{
         pedido_id,
         cliente,
         status,
         valor_total,
-        payload: data,
-      }),
-    });
+        payload
+      }]);
 
-    const resultado = await resposta.text();
-
-    if (!resposta.ok) {
-      console.error("Erro ao salvar no Supabase:", resultado);
-      return res.status(500).json({
-        ok: false,
-        erro: resultado,
-      });
+    if (error) {
+      console.error("❌ Erro ao salvar:", error);
+    } else {
+      console.log("✅ Pedido salvo no Supabase!");
     }
 
-    console.log("Pedido salvo no Supabase:", resultado);
+    res.status(200).json({ ok: true });
 
-    return res.status(200).json({
-      ok: true,
-    });
-  } catch (error) {
-    console.error("Erro geral:", error);
-    return res.status(500).json({
-      ok: false,
-      erro: error.message,
-    });
+  } catch (err) {
+    console.error("💥 ERRO:", err);
+    res.status(500).json({ error: "erro interno" });
   }
+});
+
+// 🚀 Porta
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
