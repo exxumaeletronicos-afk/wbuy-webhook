@@ -13,37 +13,35 @@ app.get("/", (req, res) => {
 app.post("/webhook/wbuy", async (req, res) => {
   try {
     const data = req.body;
+    const dados = data.dados || data;
 
     console.log("Webhook recebido:", JSON.stringify(data, null, 2));
 
     const pedido_id =
-  data.id?.toString() ||
-  data.codigo?.toString() ||
-  data.pedido?.toString() ||
-  data.order_id?.toString() ||
-  "";
+      dados.pedido_id?.toString() ||
+      dados.id?.toString() ||
+      dados.codigo?.toString() ||
+      "";
 
     const cliente =
-  data.cliente?.nome ||
-  data.cliente_nome ||
-  data.nome ||
-  data.customer?.name ||
-  data.billing?.name ||
-  data.shipping?.name ||
-  "Cliente não informado";
+      dados.cliente?.nome ||
+      dados.cliente?.razao ||
+      dados.nome ||
+      dados.nome_cliente ||
+      "Cliente não informado";
 
     const status =
-  data.status_nome ||
-  data.status ||
-  data.situacao ||
-  data.order_status ||
-  "Status não informado";
+      dados.status_nome ||
+      dados.status ||
+      dados.status_info ||
+      dados.situacao ||
+      "Status não informado";
 
     const valor_total = Number(
-      data.valor_total ||
-      data.total ||
-      data.valor ||
-      data.order_total ||
+      dados.pagamento?.valor_total ||
+      dados.valor_total ||
+      dados.valor ||
+      dados.total ||
       0
     );
 
