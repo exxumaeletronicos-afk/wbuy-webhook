@@ -151,7 +151,60 @@ app.post("/webhook/wbuy", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
+app.get("/sync/pedidos", async (req, res) => {
+  try {
+    console.log("🔄 Buscando pedidos da Wbuy...");
 
+    const response = await fetch(process.env.WBUY_API_URL);
+
+    const json = await response.json();
+
+    console.log("📦 RESPOSTA WBUY:", JSON.stringify(json, null, 2));
+
+    const pedidos = json?.data || [];
+
+    let total = 0;
+
+    for (const p of pedidos) {
+      const pedido_id = p?.id?.toString();
+      if (!pedido_id) continue;
+
+      const cliente =
+        p?.cliente?.nome ||
+        p?.cliente ||
+        "Cliente não informado";
+
+      const status =
+        p?.status_nome ||
+        p?.status ||
+        "Status não informado";
+
+      const valor_total = Number(p?.total || 0);
+
+      await supabase.from("wbuy_pedidos").upsert(
+        {
+          pedido_id,
+          cliente,
+          status,
+          valor_total,
+          payload: p,
+        },
+        {
+          onConflict: "pedido_id",
+        }
+      );
+
+      total++;
+    }
+
+    console.log(`✅ ${total} pedidos sincronizados`);
+
+    res.json({ ok: true, total });
+  } catch (err) {
+    console.error("💥 ERRO:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
