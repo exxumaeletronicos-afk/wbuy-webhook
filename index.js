@@ -13,37 +13,28 @@ app.get("/", (req, res) => {
 app.post("/webhook/wbuy", async (req, res) => {
   try {
     const data = req.body;
-    const dados = data.dados || data;
+    const dados = data.dados || {};
 
-    console.log("Webhook recebido:", JSON.stringify(data, null, 2));
+const pedido_id =
+  dados.pedido_id?.toString() ||
+  dados.id?.toString() ||
+  "";
 
-    const pedido_id =
-      dados.pedido_id?.toString() ||
-      dados.id?.toString() ||
-      dados.codigo?.toString() ||
-      "";
+const cliente =
+  dados.cliente?.nome ||
+  dados.cliente?.razao ||
+  "Cliente não informado";
 
-    const cliente =
-      dados.cliente?.nome ||
-      dados.cliente?.razao ||
-      dados.nome ||
-      dados.nome_cliente ||
-      "Cliente não informado";
+const status =
+  dados.status_nome ||
+  dados.status ||
+  "Status não informado";
 
-    const status =
-      dados.status_nome ||
-      dados.status ||
-      dados.status_info ||
-      dados.situacao ||
-      "Status não informado";
-
-    const valor_total = Number(
-      dados.pagamento?.valor_total ||
-      dados.valor_total ||
-      dados.valor ||
-      dados.total ||
-      0
-    );
+const valor_total = Number(
+  dados.pagamento?.valor_total ||
+  dados.valor_total ||
+  0
+);
 
     const resposta = await fetch(`${SUPABASE_URL}/rest/v1/wbuy_pedidos`, {
       method: "POST",
