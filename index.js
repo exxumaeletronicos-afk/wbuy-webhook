@@ -162,8 +162,9 @@ app.get("/sync/pedidos", async (req, res) => {
   method: "GET",
   headers: {
    headers: {
+  headers: {
   "Content-Type": "application/json",
-  "Authorization": `Bearer ${process.env.WBUY_TOKEN}`
+  "token": process.env.WBUY_TOKEN
 }
 
     const json = await response.json();
