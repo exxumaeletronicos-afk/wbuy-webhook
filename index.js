@@ -62,15 +62,21 @@ function extrairValor(dados) {
     dados?.valor_total ||
     dados?.total ||
     dados?.valor ||
+    dados?.total_pedido ||
+    dados?.valor_pedido ||
+    dados?.pedido_total ||
     dados?.pagamento?.valor_total ||
+    dados?.pagamento?.total ||
     0;
 
-  return (
-    Number(
-      String(bruto)
-        .replace("R$", "")
-        .replace(/\./g, "")
-        .replace(",", ".")
+  const texto = String(bruto)
+    .replace("R$", "")
+    .replace(/\s/g, "")
+    .replace(/\./g, "")
+    .replace(",", ".");
+
+  return Number(texto) || 0;
+}
         .trim()
     ) || 0
   );
