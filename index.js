@@ -1,30 +1,18 @@
-const express = require('express');
-const cors = require('cors');
-const { createClient } = require('@supabase/supabase-js');
+const pedido_id = data?.dados?.id || "EMPTY";
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+const cliente = data?.dados?.cliente?.nome 
+  || data?.dados?.cliente 
+  || "Cliente não informado";
 
-// 🔗 Supabase
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
+const status = data?.dados?.status_nome 
+  || data?.dados?.status 
+  || "Status não informado";
+
+const valor_total = parseFloat(
+  data?.dados?.valor_total 
+  || data?.dados?.valor 
+  || 0
 );
-
-// 🚀 Webhook Wbuy
-app.post('/webhook/wbuy', async (req, res) => {
-  try {
-    console.log("📦 Webhook recebido:");
-    console.log(JSON.stringify(req.body, null, 2));
-
-    const data = req.body;
-
-    // 🔍 Mapeamento correto baseado no seu log
-    const pedido_id = data?.dados?.pedido_id || "EMPTY";
-    const cliente = data?.dados?.cliente?.nome || "Cliente não informado";
-    const status = data?.dados?.status_nome || "Status não informado";
-    const valor_total = parseFloat(data?.dados?.valor_total || 0);
 
     const payload = data;
 
