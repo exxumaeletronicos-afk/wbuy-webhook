@@ -20,14 +20,16 @@ function extrairDados(body) {
   return body?.dados || body?.data || body?.payload || body || {};
 }
 
-function extrairStatus(dados) {
+function extrairPedidoId(body, dados) {
   return (
-    dados?.status_nome ||
-    dados?.situacao_nome ||
-    dados?.status?.nome ||
-    (typeof dados?.status === "string" ? dados.status : null) ||
-    "Status não informado"
-  );
+    dados?.pedido_id ||
+    dados?.id ||
+    dados?.codigo ||
+    body?.pedido_id ||
+    body?.id ||
+    body?.order_id ||
+    ""
+  ).toString();
 }
 
 function extrairCliente(dados) {
@@ -49,8 +51,8 @@ function extrairStatus(dados) {
   return (
     dados?.status?.nome ||
     dados?.status_nome ||
-    dados?.situacao ||
     dados?.situacao_nome ||
+    dados?.situacao ||
     "Status não informado"
   );
 }
@@ -63,13 +65,15 @@ function extrairValor(dados) {
     dados?.pagamento?.valor_total ||
     0;
 
-  return Number(
-    String(bruto)
-      .replace("R$", "")
-      .replace(/\./g, "")
-      .replace(",", ".")
-      .trim()
-  ) || 0;
+  return (
+    Number(
+      String(bruto)
+        .replace("R$", "")
+        .replace(/\./g, "")
+        .replace(",", ".")
+        .trim()
+    ) || 0
+  );
 }
 
 app.post("/webhook/wbuy", async (req, res) => {
@@ -78,15 +82,17 @@ app.post("/webhook/wbuy", async (req, res) => {
     const dados = extrairDados(body);
 
     console.log("📦 WEBHOOK WBUY RECEBIDO");
-    console.log("CHAVES BODY:", Object.keys(body || {}));
-    console.log("CHAVES DADOS:", Object.keys(dados || {}));
     console.log("BODY COMPLETO:", JSON.stringify(body, null, 2));
 
     const tipo = body?.tipo || body?.type || body?.evento || "wbuy_webhook";
     const pedido_id = extrairPedidoId(body, dados);
 
-    // 1. Salva evento bruto
-    const { error: erroEvento } = await supabase.from("wbuy_eventos").insert([
+    if (!pedido_id) {
+      console.log("⚠️ Webhook ignorado: pedido_id vazio");
+      return res.status(200).json({ ok: true, ignored: true });
+    }
+
+    await supabase.from("wbuy_eventos").insert([
       {
         tipo,
         pedido_id,
@@ -94,16 +100,10 @@ app.post("/webhook/wbuy", async (req, res) => {
       },
     ]);
 
-    if (erroEvento) {
-      console.error("❌ Erro ao salvar evento bruto:", erroEvento);
-    } else {
-      console.log("✅ Evento bruto salvo");
-    }
-
-    // 2. Salva pedido tratado básico
     const cliente = extrairCliente(dados);
     const status = extrairStatus(dados);
     const valor_total = extrairValor(dados);
+
     const data_pedido =
       dados?.data ||
       dados?.data_pedido ||
@@ -116,7 +116,7 @@ app.post("/webhook/wbuy", async (req, res) => {
       dados?.celular ||
       null;
 
-    const { error: erroPedido } = await supabase.from("wbuy_pedidos").insert([
+    const { error } = await supabase.from("wbuy_pedidos").upsert(
       {
         pedido_id,
         cliente,
@@ -126,13 +126,17 @@ app.post("/webhook/wbuy", async (req, res) => {
         telefone,
         payload: body,
       },
-    ]);
+      {
+        onConflict: "pedido_id",
+      }
+    );
 
-    if (erroPedido) {
-      console.error("❌ Erro ao salvar pedido tratado:", erroPedido);
-    } else {
-      console.log("✅ Pedido tratado salvo no Supabase");
+    if (error) {
+      console.error("❌ Erro ao salvar pedido:", error);
+      return res.status(500).json({ ok: false, error });
     }
+
+    console.log("✅ Pedido salvo/atualizado:", pedido_id);
 
     return res.status(200).json({
       ok: true,
@@ -150,36 +154,45 @@ app.post("/webhook/wbuy", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
 app.get("/sync/pedidos", async (req, res) => {
   try {
     console.log("🔄 Buscando pedidos da Wbuy...");
 
-    const response = await fetch(process.env.WBUY_API_URL);
+    const response = await fetch(process.env.WBUY_API_URL, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
 
     const json = await response.json();
 
     console.log("📦 RESPOSTA WBUY:", JSON.stringify(json, null, 2));
 
-    const pedidos = json?.data || [];
+    const pedidos = json?.data || json?.response || [];
 
     let total = 0;
 
     for (const p of pedidos) {
-      const pedido_id = p?.id?.toString();
+      const pedido_id = p?.id?.toString() || p?.pedido_id?.toString();
+
       if (!pedido_id) continue;
 
-      const cliente =
-        p?.cliente?.nome ||
-        p?.cliente ||
-        "Cliente não informado";
+      const cliente = extrairCliente(p);
+      const status = extrairStatus(p);
+      const valor_total = extrairValor(p);
 
-      const status =
-        p?.status_nome ||
-        p?.status ||
-        "Status não informado";
+      const data_pedido =
+        p?.data ||
+        p?.data_pedido ||
+        p?.created_at ||
+        new Date().toISOString();
 
-      const valor_total = Number(p?.total || 0);
+      const telefone =
+        p?.cliente?.telefone ||
+        p?.telefone ||
+        p?.celular ||
+        null;
 
       await supabase.from("wbuy_pedidos").upsert(
         {
@@ -187,6 +200,8 @@ app.get("/sync/pedidos", async (req, res) => {
           cliente,
           status,
           valor_total,
+          data_pedido,
+          telefone,
           payload: p,
         },
         {
@@ -199,12 +214,15 @@ app.get("/sync/pedidos", async (req, res) => {
 
     console.log(`✅ ${total} pedidos sincronizados`);
 
-    res.json({ ok: true, total });
+    return res.json({ ok: true, total });
   } catch (err) {
-    console.error("💥 ERRO:", err);
-    res.status(500).json({ error: err.message });
+    console.error("💥 ERRO SYNC:", err);
+    return res.status(500).json({ ok: false, error: err.message });
   }
 });
+
+const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
