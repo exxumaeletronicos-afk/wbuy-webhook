@@ -20,16 +20,14 @@ function extrairDados(body) {
   return body?.dados || body?.data || body?.payload || body || {};
 }
 
-function extrairPedidoId(body, dados) {
+function extrairStatus(dados) {
   return (
-    dados?.pedido_id ||
-    dados?.id ||
-    dados?.codigo ||
-    body?.pedido_id ||
-    body?.id ||
-    body?.order_id ||
-    "SEM_ID"
-  ).toString();
+    dados?.status_nome ||
+    dados?.situacao_nome ||
+    dados?.status?.nome ||
+    (typeof dados?.status === "string" ? dados.status : null) ||
+    "Status não informado"
+  );
 }
 
 function extrairCliente(dados) {
