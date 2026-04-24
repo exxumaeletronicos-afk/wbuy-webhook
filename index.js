@@ -19,8 +19,7 @@ app.get("/", (req, res) => {
 app.post("/webhook/wbuy", async (req, res) => {
   try {
     const data = req.body;
-    const dados = data?.dados || data || {};
-
+   const dados = data?.dados || data;
     console.log("📦 Webhook recebido:");
     console.log(JSON.stringify(data, null, 2));
 
