@@ -158,11 +158,11 @@ app.get("/sync/pedidos", async (req, res) => {
   try {
     console.log("🔄 Buscando pedidos da Wbuy...");
 
-    const response = await fetch(process.env.WBUY_API_URL, {
+   const response = await fetch(process.env.WBUY_API_URL, {
   method: "GET",
   headers: {
     "Content-Type": "application/json",
-    "Authorization": `Bearer ${process.env.WBUY_TOKEN}`
+    "token": process.env.WBUY_TOKEN
   },
 });
 
