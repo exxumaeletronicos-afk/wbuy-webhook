@@ -169,8 +169,11 @@ app.get("/sync/pedidos", async (req, res) => {
 
     console.log("📦 RESPOSTA WBUY:", JSON.stringify(json, null, 2));
 
-    const pedidos = json?.data || json?.response || [];
+   let pedidos = json?.data || json?.response || [];
 
+if (!Array.isArray(pedidos)) {
+  pedidos = Object.values(pedidos);
+}
     let total = 0;
 
     for (const p of pedidos) {
