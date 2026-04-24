@@ -16,188 +16,52 @@ app.get("/", (req, res) => {
   res.send("Webhook Wbuy online 🚀");
 });
 
-function extrairDados(body) {
-  return body?.dados || body?.data || body?.payload || body || {};
-}
-
-function extrairPedidoId(body, dados) {
-  return (
-    dados?.pedido_id ||
-    dados?.id ||
-    dados?.codigo ||
-    body?.pedido_id ||
-    body?.id ||
-    body?.order_id ||
-    ""
-  ).toString();
-}
-
-function extrairCliente(dados) {
-  if (typeof dados?.cliente === "string") return dados.cliente;
-
-  return (
-    dados?.cliente?.nome ||
-    dados?.cliente?.razao ||
-    dados?.cliente_nome ||
-    dados?.nome ||
-    dados?.razao_social ||
-    "Cliente não informado"
-  );
-}
-
-function extrairStatus(dados) {
-  if (typeof dados?.status === "string") return dados.status;
-
-  return (
-    dados?.status?.nome ||
-    dados?.status_nome ||
-    dados?.situacao_nome ||
-    dados?.situacao ||
-    "Status não informado"
-  );
-}
-
-function extrairValor(dados) {
-  const bruto =
-    dados?.valor_total ||
-    dados?.total ||
-    dados?.valor ||
-    dados?.pagamento?.valor_total ||
-    0;
-
-  return (
-    Number(
-      String(bruto)
-        .replace("R$", "")
-        .replace(/\./g, "")
-        .replace(",", ".")
-        .trim()
-    ) || 0
-  );
-}
-
-app.post("/webhook/wbuy", async (req, res) => {
-  try {
-    const body = req.body;
-    const dados = extrairDados(body);
-
-    console.log("📦 WEBHOOK WBUY RECEBIDO");
-    console.log("BODY COMPLETO:", JSON.stringify(body, null, 2));
-
-    const tipo = body?.tipo || body?.type || body?.evento || "wbuy_webhook";
-    const pedido_id = extrairPedidoId(body, dados);
-
-    if (!pedido_id) {
-      console.log("⚠️ Webhook ignorado: pedido_id vazio");
-      return res.status(200).json({ ok: true, ignored: true });
-    }
-
-    await supabase.from("wbuy_eventos").insert([
-      {
-        tipo,
-        pedido_id,
-        payload: body,
-      },
-    ]);
-
-    const cliente = extrairCliente(dados);
-    const status = extrairStatus(dados);
-    const valor_total = extrairValor(dados);
-
-    const data_pedido =
-      dados?.data ||
-      dados?.data_pedido ||
-      dados?.created_at ||
-      new Date().toISOString();
-
-    const telefone =
-      dados?.cliente?.telefone ||
-      dados?.telefone ||
-      dados?.celular ||
-      null;
-
-    const { error } = await supabase.from("wbuy_pedidos").upsert(
-      {
-        pedido_id,
-        cliente,
-        status,
-        valor_total,
-        data_pedido,
-        telefone,
-        payload: body,
-      },
-      {
-        onConflict: "pedido_id",
-      }
-    );
-
-    if (error) {
-      console.error("❌ Erro ao salvar pedido:", error);
-      return res.status(500).json({ ok: false, error });
-    }
-
-    console.log("✅ Pedido salvo/atualizado:", pedido_id);
-
-    return res.status(200).json({
-      ok: true,
-      pedido_id,
-      cliente,
-      status,
-      valor_total,
-    });
-  } catch (error) {
-    console.error("💥 ERRO GERAL:", error);
-    return res.status(500).json({
-      ok: false,
-      erro: error.message,
-    });
-  }
-});
-
+// =========================
+// SYNC PEDIDOS
+// =========================
 app.get("/sync/pedidos", async (req, res) => {
   try {
     console.log("🔄 Buscando pedidos da Wbuy...");
 
-   const response = await fetch(process.env.WBUY_API_URL, {
-  method: "GET",
-  headers: {
-   headers: {
-  headers: {
-  "Content-Type": "application/json",
-  "token": process.env.WBUY_TOKEN
-}
+    const response = await fetch(process.env.WBUY_API_URL, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "token": process.env.WBUY_TOKEN
+      }
+    });
 
     const json = await response.json();
 
     console.log("📦 RESPOSTA WBUY:", JSON.stringify(json, null, 2));
 
-   let pedidos = json?.data || json?.response || [];
+    const pedidos = json?.data || [];
 
-if (!Array.isArray(pedidos)) {
-  pedidos = Object.values(pedidos);
-}
+    if (!Array.isArray(pedidos)) {
+      return res.json({
+        ok: false,
+        erro: "Formato inesperado",
+        resposta: json
+      });
+    }
+
     let total = 0;
 
     for (const p of pedidos) {
-      const pedido_id = p?.id?.toString() || p?.pedido_id?.toString();
-
+      const pedido_id = p?.id?.toString();
       if (!pedido_id) continue;
 
-      const cliente = extrairCliente(p);
-      const status = extrairStatus(p);
-      const valor_total = extrairValor(p);
+      const cliente =
+        p?.cliente?.nome ||
+        p?.cliente ||
+        "Cliente não informado";
 
-      const data_pedido =
-        p?.data ||
-        p?.data_pedido ||
-        p?.created_at ||
-        new Date().toISOString();
+      const status =
+        p?.status_nome ||
+        p?.status ||
+        "Status não informado";
 
-      const telefone =
-        p?.cliente?.telefone ||
-        p?.telefone ||
-        p?.celular ||
-        null;
+      const valor_total = Number(p?.total || 0);
 
       await supabase.from("wbuy_pedidos").upsert(
         {
@@ -205,12 +69,10 @@ if (!Array.isArray(pedidos)) {
           cliente,
           status,
           valor_total,
-          data_pedido,
-          telefone,
-          payload: p,
+          payload: p
         },
         {
-          onConflict: "pedido_id",
+          onConflict: "pedido_id"
         }
       );
 
@@ -219,13 +81,41 @@ if (!Array.isArray(pedidos)) {
 
     console.log(`✅ ${total} pedidos sincronizados`);
 
-    return res.json({ ok: true, total });
+    res.json({ ok: true, total });
+
   } catch (err) {
-    console.error("💥 ERRO SYNC:", err);
-    return res.status(500).json({ ok: false, error: err.message });
+    console.error("💥 ERRO:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
+// =========================
+// WEBHOOK
+// =========================
+app.post("/webhook/wbuy", async (req, res) => {
+  try {
+    const body = req.body;
+    const dados = body?.data || body;
+
+    const pedido_id = dados?.id?.toString() || null;
+
+    await supabase.from("wbuy_eventos").insert([
+      {
+        tipo: body?.tipo || "webhook",
+        pedido_id,
+        payload: body
+      }
+    ]);
+
+    res.json({ ok: true });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =========================
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
