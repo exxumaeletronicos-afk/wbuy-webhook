@@ -1,52 +1,159 @@
+const express = require("express");
+const cors = require("cors");
+const { createClient } = require("@supabase/supabase-js");
+
+const app = express();
+
+app.use(cors());
+app.use(express.json({ limit: "20mb" }));
+
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
+);
+
+app.get("/", (req, res) => {
+  res.send("Webhook Wbuy online 🚀");
+});
+
+function extrairDados(body) {
+  return body?.dados || body?.data || body?.payload || body || {};
+}
+
+function extrairPedidoId(body, dados) {
+  return (
+    dados?.pedido_id ||
+    dados?.id ||
+    dados?.codigo ||
+    body?.pedido_id ||
+    body?.id ||
+    body?.order_id ||
+    "SEM_ID"
+  ).toString();
+}
+
+function extrairCliente(dados) {
+  if (typeof dados?.cliente === "string") return dados.cliente;
+
+  return (
+    dados?.cliente?.nome ||
+    dados?.cliente?.razao ||
+    dados?.cliente_nome ||
+    dados?.nome ||
+    dados?.razao_social ||
+    "Cliente não informado"
+  );
+}
+
+function extrairStatus(dados) {
+  if (typeof dados?.status === "string") return dados.status;
+
+  return (
+    dados?.status?.nome ||
+    dados?.status_nome ||
+    dados?.situacao ||
+    dados?.situacao_nome ||
+    "Status não informado"
+  );
+}
+
+function extrairValor(dados) {
+  const bruto =
+    dados?.valor_total ||
+    dados?.total ||
+    dados?.valor ||
+    dados?.pagamento?.valor_total ||
+    0;
+
+  return Number(
+    String(bruto)
+      .replace("R$", "")
+      .replace(/\./g, "")
+      .replace(",", ".")
+      .trim()
+  ) || 0;
+}
+
 app.post("/webhook/wbuy", async (req, res) => {
   try {
-    const data = req.body;
+    const body = req.body;
+    const dados = extrairDados(body);
 
-    console.log("📦 Webhook recebido:");
-    console.log(JSON.stringify(data, null, 2));
+    console.log("📦 WEBHOOK WBUY RECEBIDO");
+    console.log("CHAVES BODY:", Object.keys(body || {}));
+    console.log("CHAVES DADOS:", Object.keys(dados || {}));
+    console.log("BODY COMPLETO:", JSON.stringify(body, null, 2));
 
-    const dados = data?.dados || data;
+    const tipo = body?.tipo || body?.type || body?.evento || "wbuy_webhook";
+    const pedido_id = extrairPedidoId(body, dados);
 
-    const pedido_id =
-      dados?.pedido_id?.toString() ||
-      dados?.id?.toString() ||
-      "SEM_ID";
+    // 1. Salva evento bruto
+    const { error: erroEvento } = await supabase.from("wbuy_eventos").insert([
+      {
+        tipo,
+        pedido_id,
+        payload: body,
+      },
+    ]);
 
-    const cliente =
-      dados?.cliente?.nome ||
-      dados?.cliente ||
-      "Cliente não informado";
+    if (erroEvento) {
+      console.error("❌ Erro ao salvar evento bruto:", erroEvento);
+    } else {
+      console.log("✅ Evento bruto salvo");
+    }
 
-    const status =
-      dados?.status ||
-      dados?.status_nome ||
-      "Status não informado";
+    // 2. Salva pedido tratado básico
+    const cliente = extrairCliente(dados);
+    const status = extrairStatus(dados);
+    const valor_total = extrairValor(dados);
+    const data_pedido =
+      dados?.data ||
+      dados?.data_pedido ||
+      dados?.created_at ||
+      new Date().toISOString();
 
-    const valor_total = parseFloat(
-      dados?.valor_total ||
-      dados?.total ||
-      0
-    );
+    const telefone =
+      dados?.cliente?.telefone ||
+      dados?.telefone ||
+      dados?.celular ||
+      null;
 
-    const { error } = await supabase.from("wbuy_pedidos").insert([
+    const { error: erroPedido } = await supabase.from("wbuy_pedidos").insert([
       {
         pedido_id,
         cliente,
         status,
         valor_total,
-        payload: data,
+        data_pedido,
+        telefone,
+        payload: body,
       },
     ]);
 
-    if (error) {
-      console.error("❌ Erro ao salvar:", error);
+    if (erroPedido) {
+      console.error("❌ Erro ao salvar pedido tratado:", erroPedido);
     } else {
-      console.log("✅ Pedido salvo com sucesso!");
+      console.log("✅ Pedido tratado salvo no Supabase");
     }
 
-    res.status(200).json({ ok: true });
-  } catch (err) {
-    console.error("💥 Erro:", err);
-    res.status(500).json({ erro: err.message });
+    return res.status(200).json({
+      ok: true,
+      pedido_id,
+      cliente,
+      status,
+      valor_total,
+    });
+  } catch (error) {
+    console.error("💥 ERRO GERAL:", error);
+    return res.status(500).json({
+      ok: false,
+      erro: error.message,
+    });
   }
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
