@@ -161,10 +161,10 @@ app.get("/sync/pedidos", async (req, res) => {
    const response = await fetch(process.env.WBUY_API_URL, {
   method: "GET",
   headers: {
-    "Content-Type": "application/json",
-    "token": process.env.WBUY_TOKEN
-  },
-});
+   headers: {
+  "Content-Type": "application/json",
+  "Authorization": `Bearer ${process.env.WBUY_TOKEN}`
+}
 
     const json = await response.json();
 
