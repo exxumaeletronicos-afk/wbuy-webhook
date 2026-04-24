@@ -17,10 +17,11 @@ app.post("/webhook/wbuy", async (req, res) => {
     console.log("Webhook recebido:", JSON.stringify(data, null, 2));
 
     const pedido_id =
-      data.id?.toString() ||
-      data.pedido_id?.toString() ||
-      data.order_id?.toString() ||
-      "";
+  data.id?.toString() ||
+  data.codigo?.toString() ||
+  data.pedido?.toString() ||
+  data.order_id?.toString() ||
+  "";
 
     const cliente =
   data.cliente?.nome ||
@@ -32,10 +33,11 @@ app.post("/webhook/wbuy", async (req, res) => {
   "Cliente não informado";
 
     const status =
-      data.status ||
-      data.status_nome ||
-      data.order_status ||
-      "Status não informado";
+  data.status_nome ||
+  data.status ||
+  data.situacao ||
+  data.order_status ||
+  "Status não informado";
 
     const valor_total = Number(
       data.valor_total ||
