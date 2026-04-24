@@ -23,11 +23,13 @@ app.post("/webhook/wbuy", async (req, res) => {
       "";
 
     const cliente =
-      data.cliente?.nome ||
-      data.customer?.name ||
-      data.nome_cliente ||
-      data.cliente ||
-      "Cliente não informado";
+  data.cliente?.nome ||
+  data.cliente_nome ||
+  data.nome ||
+  data.customer?.name ||
+  data.billing?.name ||
+  data.shipping?.name ||
+  "Cliente não informado";
 
     const status =
       data.status ||
