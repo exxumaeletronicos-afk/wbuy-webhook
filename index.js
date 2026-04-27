@@ -201,11 +201,11 @@ app.get("/sync/pedidos", async (req, res) => {
     for (const tentativa of tentativas) {
       console.log(`🔐 Testando: ${tentativa.nome}`);
 
-      const response = await fetch(process.env.WBUY_API_URL, {
+   const response = await fetch(process.env.WBUY_API_URL, {
   method: 'GET',
   headers: {
     'Content-Type': 'application/json',
-    'Authorization': `Bearer ${process.env.WBUY_TOKEN}`
+    'token': process.env.WBUY_TOKEN
   }
 });
 
