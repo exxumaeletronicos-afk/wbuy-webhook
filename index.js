@@ -62,21 +62,18 @@ function extrairValor(dados) {
     dados?.valor_total ||
     dados?.total ||
     dados?.valor ||
-    dados?.total_pedido ||
-    dados?.valor_pedido ||
-    dados?.pedido_total ||
     dados?.pagamento?.valor_total ||
     dados?.pagamento?.total ||
+    dados?.pagamento?.valor ||
     0;
 
-  const texto = String(bruto)
-    .replace("R$", "")
-    .replace(/\s/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
-
-  return Number(texto) || 0;
-}
+  return (
+    Number(
+      String(bruto)
+        .replace("R$", "")
+        .replace(/\s/g, "")
+        .replace(/\./g, "")
+        .replace(",", ".")
         .trim()
     ) || 0
   );
@@ -97,26 +94,20 @@ app.post("/webhook/wbuy", async (req, res) => {
     const pedido_id = extrairPedidoId(body, dados);
 
     if (!pedido_id) {
-      console.log("⚠️ Webhook ignorado: pedido_id vazio");
       return res.status(200).json({ ok: true, ignored: true });
     }
 
-    await supabase.from("wbuy_pedidos").upsert(
-  {
-    pedido_id,
-    cliente,
-    status,
-    total: valor_total, // 👈 aqui corrigido
-    payload: p,
-  },
-  {
-    onConflict: "pedido_id",
-  }
-);
+    await supabase.from("wbuy_eventos").insert([
+      {
+        tipo,
+        pedido_id,
+        payload: body,
+      },
+    ]);
 
     const cliente = extrairCliente(dados);
     const status = extrairStatus(dados);
-    const valor_total = extrairValor(dados);
+    const total = extrairValor(dados);
 
     const data_pedido =
       dados?.data ||
@@ -135,7 +126,7 @@ app.post("/webhook/wbuy", async (req, res) => {
         pedido_id,
         cliente,
         status,
-        valor_total,
+        total,
         data_pedido,
         telefone,
         payload: body,
@@ -150,14 +141,12 @@ app.post("/webhook/wbuy", async (req, res) => {
       return res.status(500).json({ ok: false, error });
     }
 
-    console.log("✅ Pedido salvo/atualizado:", pedido_id);
-
     return res.status(200).json({
       ok: true,
       pedido_id,
       cliente,
       status,
-      valor_total,
+      total,
     });
   } catch (error) {
     console.error("💥 ERRO GERAL:", error);
@@ -173,7 +162,7 @@ app.post("/webhook/wbuy", async (req, res) => {
 // =========================
 app.get("/sync/pedidos", async (req, res) => {
   try {
-    console.log("🔄 Testando sincronização Wbuy...");
+    console.log("🔄 Sincronizando pedidos Wbuy...");
 
     const url = process.env.WBUY_API_URL;
     const token = process.env.WBUY_TOKEN;
@@ -207,13 +196,6 @@ app.get("/sync/pedidos", async (req, res) => {
           Token: token,
         },
       },
-      {
-        nome: "access-token",
-        headers: {
-          "Content-Type": "application/json",
-          "access-token": token,
-        },
-      },
     ];
 
     for (const tentativa of tentativas) {
@@ -238,18 +220,21 @@ app.get("/sync/pedidos", async (req, res) => {
           json?.code == "010" ||
           json?.message === "success")
       ) {
-        const pedidos =
-  json?.data?.pedidos ||
-  json?.data ||
-  json?.pedidos ||
-  json?.response?.data ||
-  [];
+        const pedidosBruto =
+          json?.data?.pedidos ||
+          json?.data?.orders ||
+          json?.data ||
+          json?.pedidos ||
+          json?.orders ||
+          json?.response?.data ||
+          json?.response ||
+          [];
 
         const pedidos = Array.isArray(pedidosBruto)
           ? pedidosBruto
           : Object.values(pedidosBruto || {});
 
-        let total = 0;
+        let totalSincronizados = 0;
 
         for (const p of pedidos) {
           const pedido_id =
@@ -261,7 +246,7 @@ app.get("/sync/pedidos", async (req, res) => {
 
           const cliente = extrairCliente(p);
           const status = extrairStatus(p);
-          total: valor_total,
+          const total = extrairValor(p);
 
           const data_pedido =
             p?.data ||
@@ -280,7 +265,7 @@ app.get("/sync/pedidos", async (req, res) => {
               pedido_id,
               cliente,
               status,
-              valor_total,
+              total,
               data_pedido,
               telefone,
               payload: p,
@@ -290,26 +275,21 @@ app.get("/sync/pedidos", async (req, res) => {
             }
           );
 
-          if (error) {
-            console.error("❌ Erro ao salvar pedido sync:", error);
-          } else {
-            total++;
-          }
+          if (!error) totalSincronizados++;
+          else console.error("❌ Erro ao salvar pedido sync:", error);
         }
-
-        console.log(`✅ ${total} pedidos sincronizados`);
 
         return res.json({
           ok: true,
           autenticacao_usada: tentativa.nome,
-          total,
+          total: totalSincronizados,
         });
       }
     }
 
     return res.status(403).json({
       ok: false,
-      erro: "Nenhum formato de autenticação funcionou. Verifique se o token é o token REST API correto da Wbuy.",
+      erro: "Nenhum formato de autenticação funcionou ou a API retornou sem sucesso.",
     });
   } catch (err) {
     console.error("💥 ERRO SYNC:", err);
