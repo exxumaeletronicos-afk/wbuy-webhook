@@ -59,26 +59,32 @@ function extrairStatus(dados) {
 
 function extrairValor(dados) {
   const bruto =
-    dados?.valor_total ||
-    dados?.total ||
-    dados?.valor ||
-    dados?.pagamento?.valor_total ||
-    dados?.pagamento?.total ||
-    dados?.pagamento?.valor ||
+    dados.valor_total ||
+    dados.total ||
+    dados.valor ||
+    dados.total_pedido ||
+    dados.valor_pedido ||
+    dados.pedido_total ||
+    dados.pagamento?.valor_total ||
+    dados.pagamento?.total ||
+    dados.payment?.valor_total ||
+    dados.payment?.total ||
     0;
 
-  return (
-    Number(
-      String(bruto)
-        .replace("R$", "")
-        .replace(/\s/g, "")
-        .replace(/\./g, "")
-        .replace(",", ".")
-        .trim()
-    ) || 0
-  );
-}
+  if (!bruto) return 0;
 
+  // Se vier como número
+  if (typeof bruto === "number") return bruto;
+
+  // Se vier como string (R$ 1.234,56)
+  const texto = String(bruto)
+    .replace("R$", "")
+    .replace(/\./g, "")
+    .replace(",", ".")
+    .trim();
+
+  return Number(texto) || 0;
+}
 // =========================
 // WEBHOOK WBUY
 // =========================
