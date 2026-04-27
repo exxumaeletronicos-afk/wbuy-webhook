@@ -101,13 +101,18 @@ app.post("/webhook/wbuy", async (req, res) => {
       return res.status(200).json({ ok: true, ignored: true });
     }
 
-    await supabase.from("wbuy_eventos").insert([
-      {
-        tipo,
-        pedido_id,
-        payload: body,
-      },
-    ]);
+    await supabase.from("wbuy_pedidos").upsert(
+  {
+    pedido_id,
+    cliente,
+    status,
+    total: valor_total, // 👈 aqui corrigido
+    payload: p,
+  },
+  {
+    onConflict: "pedido_id",
+  }
+);
 
     const cliente = extrairCliente(dados);
     const status = extrairStatus(dados);
@@ -256,7 +261,7 @@ app.get("/sync/pedidos", async (req, res) => {
 
           const cliente = extrairCliente(p);
           const status = extrairStatus(p);
-          const valor_total = extrairValor(p);
+          total: valor_total,
 
           const data_pedido =
             p?.data ||
