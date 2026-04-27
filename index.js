@@ -233,7 +233,12 @@ app.get("/sync/pedidos", async (req, res) => {
           json?.code == "010" ||
           json?.message === "success")
       ) {
-        const pedidosBruto = json?.data || json?.response || [];
+        const pedidos =
+  json?.data?.pedidos ||
+  json?.data ||
+  json?.pedidos ||
+  json?.response?.data ||
+  [];
 
         const pedidos = Array.isArray(pedidosBruto)
           ? pedidosBruto
