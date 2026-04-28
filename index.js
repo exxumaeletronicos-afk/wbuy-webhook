@@ -16,8 +16,17 @@ app.get("/", (req, res) => {
   res.send("Servidor Wbuy rodando");
 });
 
+function isObjeto(valor) {
+  return valor && typeof valor === "object" && !Array.isArray(valor);
+}
+
 function extrairDados(body) {
-  return body?.dados || body?.payload || body?.pedido || body?.order || body?.data || body || {};
+  if (isObjeto(body?.dados)) return body.dados;
+  if (isObjeto(body?.payload)) return body.payload;
+  if (isObjeto(body?.pedido)) return body.pedido;
+  if (isObjeto(body?.order)) return body.order;
+  if (isObjeto(body?.data)) return body.data;
+  return body || {};
 }
 
 function extrairPedidoId(dados) {
