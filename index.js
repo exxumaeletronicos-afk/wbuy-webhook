@@ -150,8 +150,7 @@ app.get("/sync/pedidos", async (req, res) => {
     let pagina = 1;
     let totalInseridos = 0;
 
-    while (true) {
-     const url = `${baseUrl}?limit=100&offset=${(pagina - 1) * 100}&data_inicio=2026-01-06&data_fim=2026-12-31`;
+    while (true) {const url = `${baseUrl}?limit=100&offset=${(pagina - 1) * 100}&data_inicio=2026-01-06`;
       console.log("Buscando:", url);
 
       const response = await fetch(url, {
