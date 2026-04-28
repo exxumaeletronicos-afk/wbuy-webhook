@@ -319,8 +319,15 @@ app.get("/sync/pedidos", async (req, res) => {
     const limite = Number(req.query.limit || 100);
     const maxPaginas = Number(req.query.max_paginas || 80);
 
-    const estrategias = [
+   const estrategias = [
   {
+    nome: "loop_simples",
+    montarParams: () => ({
+      limit: 100
+    }),
+    unica: true
+  }
+];
     nome: "data_intervalo",
     montarParams: () => ({
       data_inicio: dataInicial,
