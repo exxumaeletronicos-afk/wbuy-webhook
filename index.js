@@ -175,7 +175,7 @@ app.get("/sync/pedidos", async (req, res) => {
     let totalInseridos = 0;
 
     while (true) {
-      const url = `${process.env.WBUY_API_URL}?limit=100&page=${page}`;
+      const url = `${process.env.WBUY_API_URL}?limit=100&pagina=${page}`;
 
       const response = await fetch(url, {
         headers: {
