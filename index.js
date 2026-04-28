@@ -166,19 +166,61 @@ app.post("/webhook/wbuy", async (req, res) => {
 // =========================
 // SINCRONIZAÇÃO API WBUY
 // =========================
+// 🔥 ROTA DE SINCRONIZAÇÃO COMPLETA
 app.get("/sync/pedidos", async (req, res) => {
   try {
-    console.log("🔄 Sincronizando pedidos Wbuy...");
+    console.log("🔄 Iniciando sincronização...");
 
-    const url = process.env.WBUY_API_URL;
-    const token = process.env.WBUY_TOKEN;
+    let page = 1;
+    let totalInseridos = 0;
 
-    if (!url || !token) {
-      return res.status(500).json({
-        ok: false,
-        erro: "WBUY_API_URL ou WBUY_TOKEN não configurado no Render",
+    while (true) {
+      const url = `${process.env.WBUY_API_URL}?limit=100&page=${page}`;
+
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${process.env.WBUY_TOKEN}`,
+        },
       });
+
+      const json = await response.json();
+      const pedidos = json?.data || [];
+
+      if (!pedidos.length) break;
+
+      for (const p of pedidos) {
+
+        const dataPedido = p?.data || p?.created_at;
+
+        // 🔥 FILTRO DESDE 06/01
+        if (dataPedido && new Date(dataPedido) < new Date("2026-01-06")) {
+          continue;
+        }
+
+        await supabase.from("wbuy_pedidos").upsert({
+          pedido_id: String(p.id),
+          cliente: p?.cliente?.nome || "Cliente",
+          status: p?.status_nome || p?.status,
+          total: Number(p?.total || 0),
+          data_pedido: dataPedido,
+          payload: p
+        }, {
+          onConflict: "pedido_id"
+        });
+
+        totalInseridos++;
+      }
+
+      page++;
     }
+
+    res.json({ ok: true, total: totalInseridos });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
     const tentativas = [
       {
