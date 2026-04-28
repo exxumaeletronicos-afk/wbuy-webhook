@@ -169,19 +169,104 @@ app.post("/webhook/wbuy", async (req, res) => {
 // 🔥 ROTA DE SINCRONIZAÇÃO COMPLETA
 app.get("/sync/pedidos", async (req, res) => {
   try {
-    console.log("🔄 Iniciando sincronização...");
+    console.log("🚀 Iniciando sincronização COMPLETA...");
 
-    let page = 1;
-    let totalInseridos = 0;
+    const baseUrl = process.env.WBUY_API_URL;
+    const token = process.env.WBUY_TOKEN;
 
-    while (true) {
-      const url = `${process.env.WBUY_API_URL}?limit=100&pagina=${page}`;
-
-      const response = await fetch(url, {
-        headers: {
-          Authorization: `Bearer ${process.env.WBUY_TOKEN}`,
-        },
+    if (!baseUrl || !token) {
+      return res.status(500).json({
+        ok: false,
+        erro: "WBUY_API_URL ou WBUY_TOKEN não configurado"
       });
+    }
+
+    let pagina = 1;
+    let totalInseridos = 0;
+    let continuar = true;
+
+    while (continuar) {
+      console.log(`📄 Buscando página ${pagina}...`);
+
+      const response = await fetch(`${baseUrl}?limit=100&pagina=${pagina}`, {
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+
+      const json = await response.json();
+
+      const pedidos = json.data || json.orders || json || [];
+
+      console.log(`📦 Página ${pagina} retornou ${pedidos.length} pedidos`);
+
+      if (!Array.isArray(pedidos) || pedidos.length === 0) {
+        continuar = false;
+        break;
+      }
+
+      for (const pedido of pedidos) {
+        const dados = pedido.data || pedido.payload || pedido;
+
+        const pedido_id =
+          dados.pedido_id ||
+          dados.id ||
+          dados.order_id ||
+          "";
+
+        if (!pedido_id) continue;
+
+        await supabase.from("wbuy_pedidos").upsert({
+          pedido_id: String(pedido_id),
+          cliente:
+            dados.cliente ||
+            dados.customer_name ||
+            "Não informado",
+          status:
+            dados.status ||
+            dados.status_nome ||
+            dados.status_descricao ||
+            "Sem status",
+          total:
+            Number(dados.total || dados.valor_total || 0),
+          telefone:
+            dados.telefone ||
+            dados.phone ||
+            "",
+          data_pedido:
+            dados.data_pedido ||
+            dados.created_at ||
+            new Date().toISOString(),
+          payload: dados
+        });
+      }
+
+      totalInseridos += pedidos.length;
+
+      if (pedidos.length < 100) {
+        continuar = false;
+      } else {
+        pagina++;
+      }
+    }
+
+    console.log(`✅ TOTAL SINCRONIZADO: ${totalInseridos}`);
+
+    res.json({
+      ok: true,
+      total: totalInseridos
+    });
+
+  } catch (erro) {
+    console.error("❌ ERRO NA SINCRONIZAÇÃO:", erro);
+
+    res.status(500).json({
+      ok: false,
+      erro: erro.message
+    });
+  }
+});
 
       const json = await response.json();
       const pedidos = json?.data || [];
