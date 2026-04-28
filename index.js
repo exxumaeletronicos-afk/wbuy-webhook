@@ -72,16 +72,17 @@ function extrairStatus(dados) {
 }
 
 function extrairValor(dados) {
-  const valor =
-    dados?.valor_total ||
-    dados?.total ||
-    dados?.valor ||
-    dados?.valor_pedido ||
-    dados?.pedido_total ||
-    dados?.total_pedido ||
-    dados?.pagamento?.valor ||
-    dados?.pagamento?.total ||
-    0;
+  return Number(
+    dados.valor ||
+    dados.total ||
+    dados.total_pedido ||
+    dados.valor_total ||
+    dados.vlr_total ||
+    dados.pagamento?.valor ||
+    dados.payment?.value ||
+    0
+  );
+}
 
   return Number(
     String(valor)
@@ -94,13 +95,13 @@ function extrairValor(dados) {
 
 function extrairTelefone(dados) {
   return (
-    dados?.telefone ||
-    dados?.celular ||
-    dados?.cliente?.telefone ||
-    dados?.cliente?.celular ||
-    dados?.customer?.phone ||
-    dados?.phone ||
-    ""
+    dados.telefone ||
+    dados.phone ||
+    dados.celular ||
+    dados.cliente?.telefone ||
+    dados.cliente?.celular ||
+    dados.customer?.phone ||
+    "-"
   );
 }
 
