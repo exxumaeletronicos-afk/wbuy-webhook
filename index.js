@@ -320,15 +320,16 @@ app.get("/sync/pedidos", async (req, res) => {
     const maxPaginas = Number(req.query.max_paginas || 80);
 
     const estrategias = [
-      { nome: "offset", montarParams: (pagina) => ({ limit: limite, offset: (pagina - 1) * limite }) },
-      { nome: "page", montarParams: (pagina) => ({ limit: limite, page: pagina }) },
-      { nome: "pagina", montarParams: (pagina) => ({ limit: limite, pagina }) },
-      { nome: "sem_paginacao", montarParams: () => ({ limit: limite }), unica: true },
-      { nome: "offset_data_inicio", montarParams: (pagina) => ({ limit: limite, offset: (pagina - 1) * limite, data_inicio: dataInicial }) },
-      { nome: "page_data_inicio", montarParams: (pagina) => ({ limit: limite, page: pagina, data_inicio: dataInicial }) },
-      { nome: "dt_ini", montarParams: (pagina) => ({ limit: limite, offset: (pagina - 1) * limite, dt_ini: dataInicial }) }
-    ];
-
+  {
+    nome: "data_intervalo",
+    montarParams: () => ({
+      data_inicio: dataInicial,
+      data_fim: new Date().toISOString().split("T")[0],
+      limit: 100
+    }),
+    unica: true
+  }
+];
     let estrategiaUsada = null;
     let totalLidos = 0;
     let totalSalvos = 0;
