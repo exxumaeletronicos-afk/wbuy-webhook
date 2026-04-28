@@ -28,12 +28,13 @@ function extrairPedidoId(dados) {
     dados?.order_id ||
     dados?.id_order ||
     dados?.codigo ||
-    dados?.code ||
+    dados?.numero ||
     dados?.id ||
+    dados?.pedido?.id ||
+    dados?.pedido?.codigo ||
     ""
   );
 }
-
 function extrairCliente(dados) {
   return (
     dados?.cliente?.nome ||
