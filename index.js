@@ -143,6 +143,7 @@ function calcularTotalItens(dados) {
     if (subtotalItem > 0) return soma + subtotalItem;
 
     const unitario = primeiroValorPositivo(
+      item?.valor_unitario,
       item?.valor,
       item?.preco,
       item?.preco_venda,
@@ -156,47 +157,28 @@ function calcularTotalItens(dados) {
 }
 
 function extrairValor(dados) {
-  function extrairValor(dados) {
-  // 🔥 PRIORIDADE TOTAL (WBUY REAL)
   const totalDireto = primeiroValorPositivo(
     dados?.valor_total,
     dados?.total_itens,
+    dados?.valor_final,
+    dados?.total_final,
+    dados?.total_geral,
+    dados?.total_pedido,
+    dados?.pedido_total,
+    dados?.vlr_total,
+    dados?.valor_pedido,
     dados?.total,
     dados?.valor,
+    dados?.subtotal,
+    dados?.sub_total,
+    dados?.pagamento?.valor,
+    dados?.pagamento?.total,
+    dados?.payment?.value,
+    dados?.payment?.total,
     dados?.pedido?.valor_total,
     dados?.pedido?.total
   );
 
-  if (totalDireto > 0) return totalDireto;
-
-  // 🔥 CALCULO PELOS ITENS (fallback)
-  const itens = listaItens(dados);
-
-  const totalItens = itens.reduce((soma, item) => {
-    const qtd = primeiroValorPositivo(
-      item?.qtd,
-      item?.qtde,
-      item?.quantidade,
-      item?.quantity,
-      1
-    );
-
-    const unitario = primeiroValorPositivo(
-      item?.valor_unitario,
-      item?.valor,
-      item?.preco,
-      item?.price
-    );
-
-    return soma + (unitario * qtd);
-  }, 0);
-
-  if (totalItens > 0) return totalItens;
-
-  console.log("⚠️ Pedido sem valor identificado:", dados);
-
-  return 0;
-}
   if (totalDireto > 0) return totalDireto;
 
   const totalItens = calcularTotalItens(dados);
@@ -207,6 +189,8 @@ function extrairValor(dados) {
     chaves: Object.keys(dados || {}),
     total: dados?.total,
     valor: dados?.valor,
+    valor_total: dados?.valor_total,
+    total_itens: dados?.total_itens,
     itens: listaItens(dados).length
   });
 
