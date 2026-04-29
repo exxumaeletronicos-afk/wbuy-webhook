@@ -78,15 +78,19 @@ function numeroBR(valor) {
   if (valor === undefined || valor === null || valor === "") return 0;
   if (typeof valor === "number") return valor;
 
-  const texto = String(valor)
-    .replace("R$", "")
-    .replace(/\s/g, "")
-    .replace(/[^0-9,.-]/g, "");
-
+  let texto = String(valor).trim();
+  texto = texto.replace("R$", "").replace(/\s/g, "").replace(/[^0-9,.-]/g, "");
   if (!texto) return 0;
 
-  if (texto.includes(",")) {
+  const temVirgula = texto.includes(",");
+  const temPonto = texto.includes(".");
+
+  if (temVirgula) {
     return Number(texto.replace(/\./g, "").replace(",", ".")) || 0;
+  }
+
+  if (temPonto) {
+    return Number(texto) || 0;
   }
 
   return Number(texto) || 0;
@@ -137,19 +141,20 @@ function calcularTotalItens(dados) {
       item?.subtotal,
       item?.valor_total,
       item?.preco_total,
-      item?.total_item
+      item?.total_item,
+      item?.valor_final
     );
 
     if (subtotalItem > 0) return soma + subtotalItem;
 
     const unitario = primeiroValorPositivo(
       item?.valor_unitario,
+      item?.preco_unitario,
       item?.valor,
       item?.preco,
       item?.preco_venda,
       item?.price,
-      item?.unit_price,
-      item?.valor_unitario
+      item?.unit_price
     );
 
     return soma + unitario * qtd;
@@ -157,26 +162,32 @@ function calcularTotalItens(dados) {
 }
 
 function extrairValor(dados) {
+  // Prioriza campos de total do PEDIDO. Isso evita pegar preço unitário de item como se fosse total.
   const totalDireto = primeiroValorPositivo(
     dados?.valor_total,
     dados?.total_itens,
+    dados?.total_pedido,
+    dados?.valor_pedido,
     dados?.valor_final,
     dados?.total_final,
     dados?.total_geral,
-    dados?.total_pedido,
-    dados?.pedido_total,
     dados?.vlr_total,
-    dados?.valor_pedido,
-    dados?.total,
-    dados?.valor,
     dados?.subtotal,
     dados?.sub_total,
+    dados?.total_produtos,
+    dados?.valor_produtos,
+    dados?.frete?.total,
     dados?.pagamento?.valor,
     dados?.pagamento?.total,
     dados?.payment?.value,
     dados?.payment?.total,
     dados?.pedido?.valor_total,
-    dados?.pedido?.total
+    dados?.pedido?.total_itens,
+    dados?.pedido?.total,
+    dados?.totais?.valor_total,
+    dados?.totais?.total,
+    dados?.totals?.total,
+    dados?.totals?.grand_total
   );
 
   if (totalDireto > 0) return totalDireto;
@@ -370,6 +381,45 @@ app.get("/debug/wbuy", async (req, res) => {
     });
   } catch (erro) {
     console.error("Erro debug Wbuy:", erro);
+    res.status(500).json({ ok: false, erro: erro.message });
+  }
+});
+
+app.get("/debug/valores", async (req, res) => {
+  try {
+    const baseUrl = process.env.WBUY_API_URL;
+    const token = process.env.WBUY_TOKEN;
+
+    if (!baseUrl || !token) {
+      return res.status(500).json({ ok: false, erro: "WBUY_API_URL ou WBUY_TOKEN não configurado" });
+    }
+
+    const url = montarUrl(baseUrl, { limit: Number(req.query.limit || 10) });
+    const resultado = await buscarPedidosWbuy(url, token);
+
+    const diagnostico = resultado.pedidos.slice(0, 10).map((pedido) => {
+      const dados = extrairDados(pedido);
+      return {
+        pedido_id: extrairPedidoId(dados),
+        cliente: extrairCliente(dados),
+        valor_calculado: extrairValor(dados),
+        candidatos_total: {
+          valor_total: dados?.valor_total,
+          total_itens: dados?.total_itens,
+          total_pedido: dados?.total_pedido,
+          valor_pedido: dados?.valor_pedido,
+          total: dados?.total,
+          valor: dados?.valor,
+          subtotal: dados?.subtotal,
+          total_produtos: dados?.total_produtos
+        },
+        primeiro_item: listaItens(dados)[0] || null
+      };
+    });
+
+    res.json({ ok: resultado.okHttp, statusHttp: resultado.statusHttp, diagnostico });
+  } catch (erro) {
+    console.error("Erro debug valores:", erro);
     res.status(500).json({ ok: false, erro: erro.message });
   }
 });
