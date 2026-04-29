@@ -78,7 +78,12 @@ function numeroBR(valor) {
   if (valor === undefined || valor === null || valor === "") return 0;
   if (typeof valor === "number") return valor;
 
-  const texto = String(valor).replace("R$", "").replace(/\s/g, "");
+  const texto = String(valor)
+    .replace("R$", "")
+    .replace(/\s/g, "")
+    .replace(/[^0-9,.-]/g, "");
+
+  if (!texto) return 0;
 
   if (texto.includes(",")) {
     return Number(texto.replace(/\./g, "").replace(",", ".")) || 0;
@@ -87,21 +92,105 @@ function numeroBR(valor) {
   return Number(texto) || 0;
 }
 
+function primeiroValorPositivo(...valores) {
+  for (const valor of valores) {
+    const numero = numeroBR(valor);
+    if (numero > 0) return numero;
+  }
+  return 0;
+}
+
+function listaItens(dados) {
+  const candidatos = [
+    dados?.itens,
+    dados?.items,
+    dados?.produtos,
+    dados?.products,
+    dados?.pedido?.itens,
+    dados?.pedido?.items,
+    dados?.pedido?.produtos,
+    dados?.cart?.items,
+    dados?.carrinho?.itens
+  ];
+
+  for (const item of candidatos) {
+    if (Array.isArray(item)) return item;
+  }
+
+  return [];
+}
+
+function calcularTotalItens(dados) {
+  const itens = listaItens(dados);
+
+  return itens.reduce((soma, item) => {
+    const qtd = primeiroValorPositivo(
+      item?.qtd,
+      item?.qtde,
+      item?.quantidade,
+      item?.quantity,
+      1
+    ) || 1;
+
+    const subtotalItem = primeiroValorPositivo(
+      item?.total,
+      item?.subtotal,
+      item?.valor_total,
+      item?.preco_total,
+      item?.total_item
+    );
+
+    if (subtotalItem > 0) return soma + subtotalItem;
+
+    const unitario = primeiroValorPositivo(
+      item?.valor,
+      item?.preco,
+      item?.preco_venda,
+      item?.price,
+      item?.unit_price,
+      item?.valor_unitario
+    );
+
+    return soma + unitario * qtd;
+  }, 0);
+}
+
 function extrairValor(dados) {
-  return numeroBR(
-    dados?.valor_total ??
-    dados?.total ??
-    dados?.valor ??
-    dados?.valor_pedido ??
-    dados?.pedido_total ??
-    dados?.total_pedido ??
-    dados?.vlr_total ??
-    dados?.subtotal ??
-    dados?.pagamento?.valor ??
-    dados?.pagamento?.total ??
-    dados?.payment?.value ??
-    0
+  const totalDireto = primeiroValorPositivo(
+    dados?.valor_total,
+    dados?.valor_final,
+    dados?.total_final,
+    dados?.total_geral,
+    dados?.total_pedido,
+    dados?.pedido_total,
+    dados?.vlr_total,
+    dados?.valor_pedido,
+    dados?.total,
+    dados?.valor,
+    dados?.subtotal,
+    dados?.sub_total,
+    dados?.pagamento?.valor,
+    dados?.pagamento?.total,
+    dados?.payment?.value,
+    dados?.payment?.total,
+    dados?.pedido?.valor_total,
+    dados?.pedido?.total
   );
+
+  if (totalDireto > 0) return totalDireto;
+
+  const totalItens = calcularTotalItens(dados);
+  if (totalItens > 0) return totalItens;
+
+  console.log("Pedido sem valor identificado:", {
+    pedido_id: extrairPedidoId(dados),
+    chaves: Object.keys(dados || {}),
+    total: dados?.total,
+    valor: dados?.valor,
+    itens: listaItens(dados).length
+  });
+
+  return 0;
 }
 
 function extrairTelefone(dados) {
