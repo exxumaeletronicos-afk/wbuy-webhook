@@ -446,7 +446,29 @@ app.get("/sync/pedidos", async (req, res) => {
     const url = montarUrl(baseUrl, { limit: limite });
 
     console.log("Buscando:", url);
+total: extrairValor(dados) }
+  function extrairValor(dados) {
+  const totalPedido = primeiroValorPositivo(
+    dados?.total,
+    dados?.subtotal,
+    dados?.total_sem_desconto,
+    dados?.valor_total,
+    dados?.valor_final,
+    dados?.total_final,
+    dados?.total_geral,
+    dados?.total_pedido,
+    dados?.valor_pedido,
+    dados?.vlr_total
+  );
 
+  if (totalPedido > 0) return totalPedido;
+
+  const totalItens = calcularTotalItens(dados);
+  if (totalItens > 0) return totalItens;
+
+  return 0;
+}
+  
     const resultado = await buscarPedidosWbuy(url, token);
     const pedidos = resultado.pedidos;
 
