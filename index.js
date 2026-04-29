@@ -315,7 +315,14 @@ async function salvarPedido(pedido) {
       pedido_id,
       cliente: extrairCliente(dados),
       status: extrairStatus(dados),
-      total: extrairValor(dados),
+      total: primeiroValorPositivo(
+  dados?.total,
+  dados?.subtotal,
+  dados?.total_sem_desconto,
+  dados?.valor_total,
+  dados?.total_itens,
+  calcularTotalItens(dados)
+),
       telefone: extrairTelefone(dados),
       data_pedido: extrairData(dados),
       payload: dados
