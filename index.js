@@ -102,15 +102,8 @@ function numeroBR(valor) {
   texto = texto.replace("R$", "").replace(/\s/g, "").replace(/[^0-9,.-]/g, "");
   if (!texto) return 0;
 
-  const temVirgula = texto.includes(",");
-  const temPonto = texto.includes(".");
-
-  if (temVirgula) {
+  if (texto.includes(",")) {
     return Number(texto.replace(/\./g, "").replace(",", ".")) || 0;
-  }
-
-  if (temPonto) {
-    return Number(texto) || 0;
   }
 
   return Number(texto) || 0;
@@ -259,6 +252,13 @@ function extrairData(dados) {
     return texto.replace(" ", "T") + "-03:00";
   }
 
+  if (/^\d{2}\/\d{2}\/\d{4}/.test(texto)) {
+    const partes = texto.split(" ");
+    const [dia, mes, ano] = partes[0].split("/");
+    const hora = partes[1] || "00:00:00";
+    return `${ano}-${mes}-${dia}T${hora}-03:00`;
+  }
+
   return texto;
 }
 
@@ -362,6 +362,98 @@ async function salvarPedido(pedido) {
   return true;
 }
 
+app.post("/webhook/wbuy", async (req, res) => {
+  try {
+    const body = req.body;
+    const dados = extrairDados(body);
+    const pedido_id = extrairPedidoId(dados);
+
+    if (!pedido_id) {
+      return res.status(200).json({ ok: true, ignored: true, motivo: "Sem pedido_id" });
+    }
+
+    await supabase.from("wbuy_eventos").insert({
+      tipo: body?.tipo || body?.type || "wbuy_webhook",
+      pedido_id,
+      payload: body
+    });
+
+    await salvarPedido(dados);
+
+    res.json({ ok: true, pedido_id });
+  } catch (erro) {
+    console.error("Erro webhook:", erro);
+    res.status(500).json({ ok: false, erro: erro.message });
+  }
+});
+
+app.get("/debug/wbuy", async (req, res) => {
+  try {
+    const baseUrl = process.env.WBUY_API_URL;
+    const token = process.env.WBUY_TOKEN;
+
+    if (!baseUrl || !token) {
+      return res.status(500).json({ ok: false, erro: "WBUY_API_URL ou WBUY_TOKEN não configurado" });
+    }
+
+    const url = montarUrl(baseUrl, { limit: Number(req.query.limit || 100) });
+    const resultado = await buscarPedidosWbuy(url, token);
+
+    res.json({
+      ok: resultado.okHttp,
+      statusHttp: resultado.statusHttp,
+      quantidade: resultado.pedidos.length,
+      chavesResposta: resultado.json && typeof resultado.json === "object" ? Object.keys(resultado.json) : [],
+      amostra: resultado.pedidos[0] || null,
+      aviso: resultado.statusHttp === 401 ? "Token Wbuy inválido, expirado ou sem permissão" : undefined
+    });
+  } catch (erro) {
+    console.error("Erro debug Wbuy:", erro);
+    res.status(500).json({ ok: false, erro: erro.message });
+  }
+});
+
+app.get("/debug/valores", async (req, res) => {
+  try {
+    const baseUrl = process.env.WBUY_API_URL;
+    const token = process.env.WBUY_TOKEN;
+
+    if (!baseUrl || !token) {
+      return res.status(500).json({ ok: false, erro: "WBUY_API_URL ou WBUY_TOKEN não configurado" });
+    }
+
+    const url = montarUrl(baseUrl, { limit: Number(req.query.limit || 10) });
+    const resultado = await buscarPedidosWbuy(url, token);
+
+    const diagnostico = resultado.pedidos.slice(0, 10).map((pedido) => {
+      const dados = extrairDados(pedido);
+      return {
+        pedido_id: extrairPedidoId(dados),
+        cliente: extrairCliente(dados),
+        status: extrairStatus(dados),
+        data_pedido: extrairData(dados),
+        valor_calculado: extrairValor(dados),
+        candidatos_total: {
+          total: dados?.total,
+          subtotal: dados?.subtotal,
+          total_sem_desconto: dados?.total_sem_desconto,
+          valor_total: dados?.valor_total,
+          total_itens: dados?.total_itens,
+          total_pedido: dados?.total_pedido,
+          valor_pedido: dados?.valor_pedido,
+          total_produtos: dados?.total_produtos
+        },
+        primeiro_item: listaItens(dados)[0] || null
+      };
+    });
+
+    res.json({ ok: resultado.okHttp, statusHttp: resultado.statusHttp, diagnostico });
+  } catch (erro) {
+    console.error("Erro debug valores:", erro);
+    res.status(500).json({ ok: false, erro: erro.message });
+  }
+});
+
 app.get("/sync/pedidos", async (req, res) => {
   try {
     const baseUrl = process.env.WBUY_API_URL;
@@ -371,8 +463,7 @@ app.get("/sync/pedidos", async (req, res) => {
       return res.status(500).json({ ok: false, erro: "WBUY_API_URL ou WBUY_TOKEN não configurado" });
     }
 
-    const url = montarUrl(baseUrl, { limit: 100 });
-
+    const url = montarUrl(baseUrl, { limit: Number(req.query.limit || 100) });
     const resultado = await buscarPedidosWbuy(url, token);
     const pedidos = resultado.pedidos;
 
@@ -385,7 +476,48 @@ app.get("/sync/pedidos", async (req, res) => {
       }
     }
 
-    res.json({ ok: true, total_salvos: totalSalvos });
+    res.json({
+      ok: resultado.okHttp,
+      statusHttp: resultado.statusHttp,
+      total_lidos: pedidos.length,
+      total_salvos: totalSalvos,
+      aviso: resultado.statusHttp === 401 ? "Token Wbuy inválido, expirado ou sem permissão" : undefined
+    });
+  } catch (erro) {
+    res.status(500).json({ ok: false, erro: erro.message });
+  }
+});
+
+app.get("/reprocessar/valores", async (req, res) => {
+  try {
+    const limite = Number(req.query.limit || 1000);
+    const { data, error } = await supabase
+      .from("wbuy_pedidos")
+      .select("pedido_id,payload")
+      .limit(limite);
+
+    if (error) throw error;
+
+    let atualizados = 0;
+
+    for (const pedido of data || []) {
+      const dados = extrairDados(pedido.payload);
+      const total = extrairValor(dados);
+      const data_pedido = extrairData(dados);
+      const status = extrairStatus(dados);
+      const cliente = extrairCliente(dados);
+      const telefone = extrairTelefone(dados);
+
+      const { error: updateError } = await supabase
+        .from("wbuy_pedidos")
+        .update({ total, data_pedido, status, cliente, telefone })
+        .eq("pedido_id", pedido.pedido_id);
+
+      if (updateError) throw updateError;
+      atualizados++;
+    }
+
+    res.json({ ok: true, atualizados });
   } catch (erro) {
     res.status(500).json({ ok: false, erro: erro.message });
   }
