@@ -20,6 +20,13 @@ function isObjeto(valor) {
   return valor && typeof valor === "object" && !Array.isArray(valor);
 }
 
+function primeiroExistente(...valores) {
+  for (const valor of valores) {
+    if (valor !== undefined && valor !== null && valor !== "") return valor;
+  }
+  return undefined;
+}
+
 function extrairDados(body) {
   if (isObjeto(body?.dados)) return body.dados;
   if (isObjeto(body?.payload)) return body.payload;
@@ -31,52 +38,65 @@ function extrairDados(body) {
 
 function extrairPedidoId(dados) {
   return String(
-    dados?.pedido_id ||
-    dados?.pedidoId ||
-    dados?.id_pedido ||
-    dados?.order_id ||
-    dados?.id_order ||
-    dados?.codigo ||
-    dados?.numero ||
-    dados?.id ||
-    dados?.pedido?.id ||
-    dados?.pedido?.codigo ||
-    ""
-  );
+    primeiroExistente(
+      dados?.pedido_id,
+      dados?.pedidoId,
+      dados?.id_pedido,
+      dados?.order_id,
+      dados?.id_order,
+      dados?.codigo,
+      dados?.numero,
+      dados?.id,
+      dados?.pedido?.id,
+      dados?.pedido?.codigo
+    ) || ""
+  ).trim();
 }
 
 function extrairCliente(dados) {
-  return (
-    dados?.cliente?.nome ||
-    dados?.cliente?.name ||
-    dados?.cliente_nome ||
-    dados?.customer?.name ||
-    dados?.customer_name ||
-    dados?.nome_cliente ||
-    dados?.cliente ||
-    dados?.nome ||
-    "Cliente não informado"
-  );
+  return String(
+    primeiroExistente(
+      dados?.cliente?.nome,
+      dados?.cliente?.name,
+      dados?.cliente_nome,
+      dados?.customer?.name,
+      dados?.customer_name,
+      dados?.nome_cliente,
+      dados?.cliente,
+      dados?.nome
+    ) || "Cliente não informado"
+  ).trim();
 }
 
 function extrairStatus(dados) {
-  return (
-    dados?.status_nome ||
-    dados?.status_name ||
-    dados?.status_descricao ||
-    dados?.status_description ||
-    dados?.situacao_nome ||
-    dados?.situacao ||
-    dados?.status?.nome ||
-    dados?.status?.name ||
-    dados?.status ||
-    "Status não informado"
+  const statusBruto = primeiroExistente(
+    dados?.status_nome,
+    dados?.status_name,
+    dados?.status_descricao,
+    dados?.status_description,
+    dados?.situacao_nome,
+    dados?.situacao,
+    dados?.status?.nome,
+    dados?.status?.name,
+    dados?.status
   );
+
+  const mapa = {
+    "1": "A Confirmar Pagamento",
+    "2": "Pagamento Confirmado",
+    "3": "Pedido Finalizado",
+    "4": "Pedido Cancelado",
+    "5": "Enviado para Separação",
+    "6": "Enviado para Transporte"
+  };
+
+  const texto = String(statusBruto || "").trim();
+  return mapa[texto] || texto || "Status não informado";
 }
 
 function numeroBR(valor) {
   if (valor === undefined || valor === null || valor === "") return 0;
-  if (typeof valor === "number") return valor;
+  if (typeof valor === "number") return Number.isFinite(valor) ? valor : 0;
 
   let texto = String(valor).trim();
   texto = texto.replace("R$", "").replace(/\s/g, "").replace(/[^0-9,.-]/g, "");
@@ -162,77 +182,84 @@ function calcularTotalItens(dados) {
 }
 
 function extrairValor(dados) {
-  // Prioriza campos de total do PEDIDO. Isso evita pegar preço unitário de item como se fosse total.
-  const totalDireto = primeiroValorPositivo(
-    dados?.valor_total,
-    dados?.total_itens,
+  const totalPedido = primeiroValorPositivo(
+    dados?.total,
+    dados?.subtotal,
+    dados?.total_sem_desconto,
     dados?.total_pedido,
     dados?.valor_pedido,
+    dados?.valor_total,
     dados?.valor_final,
     dados?.total_final,
     dados?.total_geral,
     dados?.vlr_total,
-    dados?.subtotal,
     dados?.sub_total,
     dados?.total_produtos,
     dados?.valor_produtos,
-    dados?.frete?.total,
-    dados?.pagamento?.valor,
-    dados?.pagamento?.total,
-    dados?.payment?.value,
-    dados?.payment?.total,
-    dados?.pedido?.valor_total,
-    dados?.pedido?.total_itens,
     dados?.pedido?.total,
-    dados?.totais?.valor_total,
+    dados?.pedido?.subtotal,
+    dados?.pedido?.total_sem_desconto,
+    dados?.pedido?.total_pedido,
+    dados?.pedido?.valor_total,
     dados?.totais?.total,
+    dados?.totais?.subtotal,
+    dados?.totais?.valor_total,
     dados?.totals?.total,
     dados?.totals?.grand_total
   );
 
-  if (totalDireto > 0) return totalDireto;
+  if (totalPedido > 0) return totalPedido;
 
-  const totalItens = calcularTotalItens(dados);
-  if (totalItens > 0) return totalItens;
+  const totalItensCampo = primeiroValorPositivo(
+    dados?.total_itens,
+    dados?.pedido?.total_itens
+  );
 
-  console.log("Pedido sem valor identificado:", {
-    pedido_id: extrairPedidoId(dados),
-    chaves: Object.keys(dados || {}),
-    total: dados?.total,
-    valor: dados?.valor,
-    valor_total: dados?.valor_total,
-    total_itens: dados?.total_itens,
-    itens: listaItens(dados).length
-  });
+  if (totalItensCampo > 0) return totalItensCampo;
+
+  const totalItensCalculado = calcularTotalItens(dados);
+  if (totalItensCalculado > 0) return totalItensCalculado;
 
   return 0;
 }
 
 function extrairTelefone(dados) {
-  return (
-    dados?.telefone ||
-    dados?.celular ||
-    dados?.fone ||
-    dados?.cliente?.telefone ||
-    dados?.cliente?.celular ||
-    dados?.cliente?.fone ||
-    dados?.customer?.phone ||
-    dados?.phone ||
-    "-"
-  );
+  return String(
+    primeiroExistente(
+      dados?.telefone,
+      dados?.celular,
+      dados?.fone,
+      dados?.cliente?.telefone,
+      dados?.cliente?.celular,
+      dados?.cliente?.fone,
+      dados?.customer?.phone,
+      dados?.phone
+    ) || "-"
+  ).trim();
 }
 
 function extrairData(dados) {
-  return (
-    dados?.data_pedido ||
-    dados?.pedido_data ||
-    dados?.created_at ||
-    dados?.data_criacao ||
-    dados?.date_created ||
-    dados?.date ||
-    dados?.data ||
-    new Date().toISOString()
+  const data = primeiroExistente(
+    dados?.data_pedido,
+    dados?.pedido_data,
+    dados?.created_at,
+    dados?.data_criacao,
+    dados?.date_created,
+    dados?.date,
+    dados?.data,
+    dados?.pedido?.data,
+    dados?.pedido?.created_at
   );
+
+  if (!data) return new Date().toISOString();
+
+  const texto = String(data).trim();
+
+  if (/^\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}/.test(texto)) {
+    return texto.replace(" ", "T") + "-03:00";
+  }
+
+  return texto;
 }
 
 function normalizarListaPedidos(json) {
@@ -310,19 +337,14 @@ async function salvarPedido(pedido) {
 
   if (!pedido_id) return false;
 
+  const total = extrairValor(dados);
+
   const { error } = await supabase.from("wbuy_pedidos").upsert(
     {
       pedido_id,
       cliente: extrairCliente(dados),
       status: extrairStatus(dados),
-      total: primeiroValorPositivo(
-  dados?.total,
-  dados?.subtotal,
-  dados?.total_sem_desconto,
-  dados?.valor_total,
-  dados?.total_itens,
-  calcularTotalItens(dados)
-),
+      total,
       telefone: extrairTelefone(dados),
       data_pedido: extrairData(dados),
       payload: dados
@@ -340,101 +362,8 @@ async function salvarPedido(pedido) {
   return true;
 }
 
-app.post("/webhook/wbuy", async (req, res) => {
-  try {
-    const body = req.body;
-    const dados = extrairDados(body);
-    const pedido_id = extrairPedidoId(dados);
-
-    if (!pedido_id) {
-      return res.status(200).json({ ok: true, ignored: true, motivo: "Sem pedido_id" });
-    }
-
-    await supabase.from("wbuy_eventos").insert({
-      tipo: body?.tipo || body?.type || "wbuy_webhook",
-      pedido_id,
-      payload: body
-    });
-
-    await salvarPedido(dados);
-
-    res.json({ ok: true, pedido_id });
-  } catch (erro) {
-    console.error("Erro webhook:", erro);
-    res.status(500).json({ ok: false, erro: erro.message });
-  }
-});
-
-app.get("/debug/wbuy", async (req, res) => {
-  try {
-    const baseUrl = process.env.WBUY_API_URL;
-    const token = process.env.WBUY_TOKEN;
-
-    if (!baseUrl || !token) {
-      return res.status(500).json({ ok: false, erro: "WBUY_API_URL ou WBUY_TOKEN não configurado" });
-    }
-
-    const url = montarUrl(baseUrl, { limit: Number(req.query.limit || 100) });
-    const resultado = await buscarPedidosWbuy(url, token);
-
-    res.json({
-      ok: resultado.okHttp,
-      url,
-      statusHttp: resultado.statusHttp,
-      quantidade: resultado.pedidos.length,
-      chavesResposta: resultado.json && typeof resultado.json === "object" ? Object.keys(resultado.json) : [],
-      amostra: resultado.pedidos[0] || null,
-      aviso: resultado.statusHttp === 401 ? "Token Wbuy inválido, expirado ou sem permissão" : undefined
-    });
-  } catch (erro) {
-    console.error("Erro debug Wbuy:", erro);
-    res.status(500).json({ ok: false, erro: erro.message });
-  }
-});
-
-app.get("/debug/valores", async (req, res) => {
-  try {
-    const baseUrl = process.env.WBUY_API_URL;
-    const token = process.env.WBUY_TOKEN;
-
-    if (!baseUrl || !token) {
-      return res.status(500).json({ ok: false, erro: "WBUY_API_URL ou WBUY_TOKEN não configurado" });
-    }
-
-    const url = montarUrl(baseUrl, { limit: Number(req.query.limit || 10) });
-    const resultado = await buscarPedidosWbuy(url, token);
-
-    const diagnostico = resultado.pedidos.slice(0, 10).map((pedido) => {
-      const dados = extrairDados(pedido);
-      return {
-        pedido_id: extrairPedidoId(dados),
-        cliente: extrairCliente(dados),
-        valor_calculado: extrairValor(dados),
-        candidatos_total: {
-          valor_total: dados?.valor_total,
-          total_itens: dados?.total_itens,
-          total_pedido: dados?.total_pedido,
-          valor_pedido: dados?.valor_pedido,
-          total: dados?.total,
-          valor: dados?.valor,
-          subtotal: dados?.subtotal,
-          total_produtos: dados?.total_produtos
-        },
-        primeiro_item: listaItens(dados)[0] || null
-      };
-    });
-
-    res.json({ ok: resultado.okHttp, statusHttp: resultado.statusHttp, diagnostico });
-  } catch (erro) {
-    console.error("Erro debug valores:", erro);
-    res.status(500).json({ ok: false, erro: erro.message });
-  }
-});
-
 app.get("/sync/pedidos", async (req, res) => {
   try {
-    console.log("Iniciando sincronização Wbuy estável");
-
     const baseUrl = process.env.WBUY_API_URL;
     const token = process.env.WBUY_TOKEN;
 
@@ -442,33 +371,8 @@ app.get("/sync/pedidos", async (req, res) => {
       return res.status(500).json({ ok: false, erro: "WBUY_API_URL ou WBUY_TOKEN não configurado" });
     }
 
-    const limite = Number(req.query.limit || 100);
-    const url = montarUrl(baseUrl, { limit: limite });
+    const url = montarUrl(baseUrl, { limit: 100 });
 
-    console.log("Buscando:", url);
-total: extrairValor(dados) }
-  function extrairValor(dados) {
-  const totalPedido = primeiroValorPositivo(
-    dados?.total,
-    dados?.subtotal,
-    dados?.total_sem_desconto,
-    dados?.valor_total,
-    dados?.valor_final,
-    dados?.total_final,
-    dados?.total_geral,
-    dados?.total_pedido,
-    dados?.valor_pedido,
-    dados?.vlr_total
-  );
-
-  if (totalPedido > 0) return totalPedido;
-
-  const totalItens = calcularTotalItens(dados);
-  if (totalItens > 0) return totalItens;
-
-  return 0;
-}
-  
     const resultado = await buscarPedidosWbuy(url, token);
     const pedidos = resultado.pedidos;
 
@@ -481,16 +385,8 @@ total: extrairValor(dados) }
       }
     }
 
-    res.json({
-      ok: resultado.okHttp,
-      statusHttp: resultado.statusHttp,
-      total_lidos: pedidos.length,
-      total_salvos: totalSalvos,
-      url,
-      aviso: resultado.statusHttp === 401 ? "Token Wbuy inválido, expirado ou sem permissão" : undefined
-    });
+    res.json({ ok: true, total_salvos: totalSalvos });
   } catch (erro) {
-    console.error("Erro sync:", erro);
     res.status(500).json({ ok: false, erro: erro.message });
   }
 });
